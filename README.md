@@ -224,8 +224,6 @@ http {
         location / {
             proxy_pass http://app;
             proxy_http_version 1.1;
-            proxy_set_header X-SIA "PAD";
-            proxy_set_header X-IRN "IRN-67214";
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection 'upgrade';
             proxy_set_header Host $host;
@@ -240,8 +238,6 @@ http {
         location ~ /api/(?<url>.*) {
             proxy_pass http://api/$url;
             proxy_http_version 1.1;
-            proxy_set_header X-SIA "PAD";
-            proxy_set_header X-IRN "IRN-67214";
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection 'upgrade';
             proxy_set_header Host $host;

@@ -1,13 +1,13 @@
-# How to Dockerize your Express/React app and still use your favorite Webpack plugins
+# Separate your Express/React app in microservices, make it portable with Docker... and still use your favorite dev tools !
 
 Your project is organized though different technical services e.g. back-office, front-end application, back-end application, database.
 
-While you could run all these services at once on one server, wouldn't it be nice to make them live separatly? Then you can manage each of your technical services individually:
+While you could run all these services at once on one server, wouldn't it be nice to make them live separatly? Then you could manage each of your technical services individually:
 - **how they interact** with one another;
-- prevent one from stealing shared resources as **each one has its own resources**;
-- and watch running parts of your application **the same way you architected your application**.
+- isolate and **choose the best stack** for each one of them;
+- and watch running parts of your application (*your microservices*) **deployed, shared, updated and scaled** independently.
 
-Still, it is really difficult to make them live separately on several physical servers. **Docker** is the solution: it lets you separate your architecture in several autonomous services. Now taht you are convinced you want to use Docker, you fear loosing all your great **Webpack** plugins such as *React-hot-loader*.
+Still, it is really difficult to make them live separately on several physical servers in terms of security and portablilty. **Docker** may be the solution: it lets you separate your architecture in several autonomous services. You can get more information about (Docker Use Cases here)[https://www.docker.com/use-cases]. By the way, if you wonder what will happen to all your great webpack plugins such as *React-hot-loader*, don't worry we'll get it covered ;)
 
 ![Docker Header](assets/docker-header.png)
 
@@ -19,8 +19,8 @@ Still, it is really difficult to make them live separately on several physical s
 
 For this tutorial, let's assume we own a simple React web-application supported by three services :
 
-- a Postgres **database** which uses port `5432` on `localhost` locally.
-- a [NodeJS](http://www.bam.tech/technologies-mobiles) **backend** which listen to port `8080` on `localhost` locally.
+- a PostgreSQL **database** which uses port `5432` on `localhost`.
+- a [NodeJS](http://www.bam.tech/technologies-mobiles) **backend** which listen to port `8080` on `localhost`.
 - a React **frontend** served by Webpack development server on port `3000` on `localhost`.
 
 The following diagram represents the current stack.
@@ -29,7 +29,7 @@ The following diagram represents the current stack.
 
 > You can follow this tutorial with this application example available [here](https://github.com/tpucci/react-bucket-list/tree/docker/containerless). You can **clone it** and follow the tutorial.
 
-You might have experienced that using a lot of different ports is confusing while developping services locally : it often involves cross-origin resource sharing which need to be allowed.
+You might have experienced that using a lot of different ports is confusing while developping services locally : it often involves cross-origin resource sharing which need to be allowed. Cross-origin resource sharing let another domain access your data. When you need to access your data from a different domain, you need to allow this domain to query the data.
 
 > Cross-origin resource sharing (CORS) are allowed in the example project ;)
 
@@ -125,7 +125,7 @@ Now let's think about how our services should run in our production environnemen
 
 - the React application should be served statically by one server : this is our **first service**.
 - the backend should be accessed with the same root URL than our frontend : the API is our **second service** and will be discovered behind a proxy of our first server. This way we won't have any problem of browsers throwing Cross-origin resource sharing issues.
-- the database should be accessed with a URL and some creditentials.
+- the database should be accessed with a URL and some credentials.
 
 In order to achieve our goal (which is to make each of our services manageable), we use **Docker** to containerize them. The target container architecture is given here:
 
@@ -147,9 +147,9 @@ Instead of building the entire architecture each time we make a change in our co
 
 | +  | -  |
 |----|---|
-| Quickly and efficient development | One level of abstraction added |
-| Fully iso between developpers | Not exactly iso-production |
-| See services logs in one place |  |
+| Fast and efficient development | One level of abstraction added |
+| Fully iso between developpers (the way the code is executed is the same) | Not iso-production (but good effort is made) |
+| See services logs in one place organised by color |  |
 | Clear definition of services |  |
 
 ## Step 4: Connect everthing.
@@ -324,7 +324,7 @@ services:
 
 ### 4.3: Actually connect everything.
 
-We now create the `docker/dev.tpl.yml` configuration file and connect our services. A good thing about having a `build.yml` file and a `dev.tpl.yml` file is that you separate building the containers from connecting them. This way you can pass the containers their environnement variable at the very end, just before running them.
+We now create the `docker/dev.tpl.yml` configuration file and connect our services. A good thing about having a `build.yml` file and a `dev.tpl.yml` file is that you separate building the containers from connecting them. This way you can pass the containers their environnement variable at the very end, just before running them: if for some reason, you need to modify a secret, you won't need to rebuild these containers.
 
 ```
 📂 config
@@ -390,7 +390,7 @@ services:
       - '5431:5432'
 ```
 
-You can see in this file that we set resources limits. You can either do this way or use [Docker Compose version 2](https://docs.docker.com/compose/compose-file/compose-file-v2/#cpu_count-cpu_percent-cpu_shares-cpu_quota-cpus-cpuset-domainname-hostname-ipc-mac_address-mem_limit-memswap_limit-mem_swappiness-mem_reservation-oom_score_adj-privileged-read_only-shm_size-stdin_open-tty-user-working_dir).
+You can see in this file that we set resources limits: the hosting server will share its resources to these containers. Limiting resources prevent one container draining all resources leaving the other dying ((more info here)[https://docs.docker.com/engine/admin/resource_constraints]). You can either do this way or use [Docker Compose version 2](https://docs.docker.com/compose/compose-file/compose-file-v2/#cpu_count-cpu_percent-cpu_shares-cpu_quota-cpus-cpuset-domainname-hostname-ipc-mac_address-mem_limit-memswap_limit-mem_swappiness-mem_reservation-oom_score_adj-privileged-read_only-shm_size-stdin_open-tty-user-working_dir).
 
 ### 4.4: Create installation script.
 
@@ -464,10 +464,12 @@ Simply install your containers with `yarn dev:install`... and run `yarn dev:up` 
 
 Visit [localhost](http://localhost/) to see your app live !
 
-Docker Compose launched every container accordingly to our configuration file. Once launched, every service print their logs in **one single terminal**. We made every service resource manageable and furthermore, we still use our efficient development tools !
+Docker Compose launched every container accordingly to our configuration file. Once launched, every service print their logs in **one single terminal**. We made every service resource manageable and portable. Furthermore, we still use our efficient development tools !
 
 You can have the final result at the `containerfull` branch of the [repo of this tutorial](https://github.com/tpucci/react-bucket-list/tree/docker/containerfull).
 
 ## What's next ?
 
-You can create all scripts and derived Dockerfiles to release and deploy your containers in CI/CD ! Perhaps deploying this architecture to the remote production server will be explained in a later tutorial.
+You can create all scripts and derived Dockerfiles to release and deploy your containers in CI/CD ! Deploying this architecture to the remote production server will be explained in a later tutorial.
+
+Cheers :)

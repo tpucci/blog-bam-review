@@ -324,7 +324,7 @@ services:
 
 ### 4.3: Actually connect everything.
 
-We now create the `docker/dev.tpl.yml` configuration file and connect our services. A good thing about having a `build.yml` file and a `dev.tpl.yml` file is that you separate building the containers from connecting them. This way you can pass the containers their environnement variable at the very end, just before running them: if for some reason, you need to modify a secret, you won't need to rebuild these containers.
+We now create the `docker/dev.tpl.yml` configuration file and connect our services. A good thing about having a `build.yml` file and a `dev.tpl.yml` file is that you separate building the containers from connecting them. This way you can pass the containers their environnement variable at the very end, just before running them: it separates your building job from your release job.
 
 ```
 📂 config
@@ -470,6 +470,7 @@ You can have the final result at the `containerfull` branch of the [repo of this
 
 ## What's next ?
 
-You can create all scripts and derived Dockerfiles to release and deploy your containers in CI/CD ! Deploying this architecture to the remote production server will be explained in a later tutorial.
+You can create all scripts and derived Dockerfiles to release and deploy your containers in CI/CD ! 
+You can first create `nginx.prod.conf` file, then create the `docker/prod.tpl.yml` configuration file. Get inspire by your development configuration and create the scripts needed in your CI/CD pipelines.
 
 Cheers :)

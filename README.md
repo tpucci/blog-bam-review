@@ -1,17 +1,17 @@
-# Separate your Express/React app in microservices, make it portable with Docker... and still use your favorite dev tools !
+# Split your Express/React app in microservices, make it portable with Docker... and keep using your favorite dev tools (such as live-reload) !
 
 Your project is organized though different technical services e.g. back-office, front-end application, back-end application, database.
 
 While you could run all these services at once on one server, wouldn't it be nice to make them live separatly? Then you could manage each of your technical services individually:
 - **how they interact** with one another;
 - isolate and **choose the best stack** for each one of them;
-- and watch running parts of your application (*your microservices*) **deployed, shared, updated and scaled** independently.
+- watch running parts of your application (*your microservices*) **deployed, shared, updated and scaled** independently.
 
-Still, it is really difficult to make them live separately on several physical servers in terms of security and portablilty. **Docker** may be the solution: it lets you separate your architecture in several autonomous services. You can get more information about (Docker Use Cases here)[https://www.docker.com/use-cases]. By the way, if you wonder what will happen to all your great webpack plugins such as *React-hot-loader*, don't worry we'll get it covered ;)
+Still, it is really difficult to make them live separately on several physical servers in terms of security and portablilty. **Docker** may be the solution: it lets you separate your architecture in several autonomous services. You can get more information about (Docker Use Cases here)[https://www.docker.com/use-cases]. By the way, if you wonder what will happen to all your great webpack plugins such as (*React-hot-loader*)[https://github.com/gaearon/react-hot-loader], don't worry we'll get it covered ;)
 
 ![Docker Header](assets/docker-header.png)
 
-**This tutorial will guide you through Dockerizing a sample Express/React project which uses Webpack and its plugins in a development environnement.**
+**This tutorial will guide you through Dockerizing a sample Express/React project which uses Webpack and its plugins in a development environnement. The architecture I describe might not be the best for your project. However the goal of this tutorial is to understand how to split your Express/React app in microservices, make it portable with Docker and keep using Reat hot loader :)**
 
 > For this tutorial, you will need Docker and Docker-compose.
 
@@ -19,8 +19,8 @@ Still, it is really difficult to make them live separately on several physical s
 
 For this tutorial, let's assume we own a simple React web-application supported by three services :
 
-- a PostgreSQL **database** which uses port `5432` on `localhost`.
-- a [NodeJS](http://www.bam.tech/technologies-mobiles) **backend** which listen to port `8080` on `localhost`.
+- a PostgreSQL **database** which uses port `5432` on `localhost`;
+- a [NodeJS](http://www.bam.tech/technologies-mobiles) **backend** which listen to port `8080` on `localhost`;
 - a React **frontend** served by Webpack development server on port `3000` on `localhost`.
 
 The following diagram represents the current stack.
@@ -41,7 +41,7 @@ First, let's containerize these three services. Create the `docker` directory, a
 
 We create our Dockerfile with these characteristics:
 
-- it should run node with a command (`npm run start`);
+- it should run node with a command (`yarn run start`);
 - it should create a `/usr/src/app` working directory;
 - it should expose its `3000` port (Webpack Dev Server port).
 
@@ -53,19 +53,21 @@ We create our Dockerfile with these characteristics:
 ```
 
 ```Dockerfile
-FROM node:7.9-alpine
+FROM node:8.1.0-alpine
 
 WORKDIR /usr/src/app
 
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+CMD ["yarn", "run", "start"]
 ```
+
+> Here we use one *Alpine* image in which node lives. In your project, your free to find more usable Docker image such as *Ubuntu* for example.
 
 #### Api
 
 We create our Dockerfile with these characteristics, very similar to our App service characteristics:
 
-- it should run node with a command (`npm run serve`);
+- it should run node with a command (`yarn run serve`);
 - it should create a `/usr/src/api` working directory;
 - ir should expose its `8080` port (our Node's Express server port).
 
@@ -77,12 +79,12 @@ We create our Dockerfile with these characteristics, very similar to our App ser
 ```
 
 ```Dockerfile
-FROM node:7.9-alpine
+FROM node:8.1.0-alpine
 
 WORKDIR /usr/src/api
 
 EXPOSE 8080
-CMD ["npm", "run", "serve"]
+CMD ["yarn", "run", "serve"]
 ```
 
 > Modify your api `package.json` scripts to add the following line; it will run migrations and seed our database on startup !
@@ -131,14 +133,14 @@ In order to achieve our goal (which is to make each of our services manageable),
 
 ![Production stack](assets/docker-production-stack.png)
 
-- **Server**: this service runs OpenResty which is based on NGINX. The server is accessible from outside through port `80`. We then need to connect our production server `80` port to this service `80` port. It serves our React application on `/`route and redirects queries to our **Api** on `/api` route.
-- **Api**: this service runs Node and its middlewares. It connects our external DB (known host, port and creditentials).
+- **Server**: this service runs NGINX. The server is accessible from outside through port `80`. We then need to connect our production server `80` port to this service `80` port. It serves our React application on `/`route and redirects queries to our **Api** on `/api` route.
+- **Api**: this service runs Node and its middlewares. It connects our external DB (known host, port and credentials).
 
 ## Step 3: Draw your development architecture.
 
-One of our standard at [BAM](http://www.bam.tech/equipe-bam) is to be as iso-production as possible when developping. On one hand, it ensures we share the same specification on our machine and on the staging/production servers and reduce regression risk when pushing to remote servers. On the other hand, we should **not forget** efficient development tools: running Docker services on our machine should not slow down features development.
+One of our standard at [BAM](http://www.bam.tech/equipe-bam) is to be as iso-production as possible when developping. On one hand, it ensures we share the same specification on our machines and on the staging/production servers and reduce regression risk when pushing to remote servers. On the other hand, we should **not forget** efficient development tools: running Docker services on our machine should not slow down features development.
 
-Instead of building the entire architecture each time we make a change in our code, we would still use our development servers. The following diagram shows our development architecture (differences with target architecture are showed in green):
+Instead of building the entire architecture each time we make a change in our code, we would still use our Webpack development server. The following diagram shows our development architecture (differences with target architecture are showed in green):
 
 ![Development stack](assets/docker-dev-stack.png)
 
@@ -170,94 +172,56 @@ We first create `nginx.dev.conf` file.
   └ 🗋 nginx.dev.conf
 ```
 
+Declare connections to other services : 
+
 ```
-worker_processes  1;
+  upstream api {
+      least_conn;
+      server api:8080 max_fails=3 fail_timeout=30s;
+  }
 
-events {
-    worker_connections  1024;
-}
+  upstream app {
+      least_conn;
+      server app:3000 max_fails=3 fail_timeout=30s;
+  }
+```
 
-http {
+Declare proxies:
 
-    sendfile             on;
-    keepalive_timeout    65;
-    client_max_body_size 5M;
+```
+  location / {
+      proxy_pass http://app;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection 'upgrade';
+      proxy_set_header Host $host;
+      proxy_cache_bypass $http_upgrade;
+      break;
+  }
 
-    gzip on;
-    gzip_disable "msie6";
+  location ~ /api/(?<url>.*) {
+      proxy_pass http://api/$url;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection 'upgrade';
+      proxy_set_header Host $host;
+      proxy_cache_bypass $http_upgrade;
+  }
+```
 
-    gzip_vary on;
-    gzip_proxied any;
-    gzip_comp_level 6;
-    gzip_buffers 16 8k;
-    gzip_http_version 1.1;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+Use `Access-Control-Allow-Origin` header to allow pre-flight request checks :)
 
-    # Block alihack
-    deny 23.27.103.106/32;
-
-    upstream api {
-        least_conn;
-        server api:8080 max_fails=3 fail_timeout=30s;
-    }
-
-    upstream app {
-        least_conn;
-        server app:3000 max_fails=3 fail_timeout=30s;
-    }
-
-    server {
-        listen 80 default_server;
-        listen [::]:80 default_server;
-
-        if ($request_method = 'OPTIONS') {
-          return 200;
-        }
-
-        root /var/www/html;
-
-        index index.html;
-
-        # To allow POST on static pages
-        error_page  405     =200 $uri;
-
-        location / {
-            proxy_pass http://app;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection 'upgrade';
-            proxy_set_header Host $host;
-            proxy_cache_bypass $http_upgrade;
-            break;
-        }
-
+```
         location ~* \.(eot|otf|ttf|woff|woff2)$ {
             add_header Access-Control-Allow-Origin *;
         }
-
-        location ~ /api/(?<url>.*) {
-            proxy_pass http://api/$url;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection 'upgrade';
-            proxy_set_header Host $host;
-            proxy_cache_bypass $http_upgrade;
-        }
-
-        location /health-check {
-          return 200;
-          access_log off;
-        }
-    }
-
-}
 ```
 
-The content of `nginx.dev.conf` will not be explained here as NGINX is not the purpose of this tutorial. However, my configuration file is given above. It declares the two `app` and `api` upstreams.
+The content of `nginx.dev.conf` will not be explained here as NGINX is not the purpose of this tutorial. However, my **full** configuration file is given [here](https://github.com/tpucci/react-bucket-list/blob/docker/containerfull/config/nginx/nginx.dev.conf).
 
 Finally, we create our Dockerfile with these characteristics:
 
-- it should run openresty;
+- it should run *nginx*;
 - it should use our `nginx.dev.conf` configuration file;
 - it should expose its `80` port.
 
@@ -268,74 +232,43 @@ Finally, we create our Dockerfile with these characteristics:
 ```
 
 ```Dockerfile
-FROM openresty/openresty:alpine
+FROM nginx
 
-ADD /config/nginx/nginx.dev.conf /usr/local/openresty/nginx/conf/nginx.conf
+ADD /config/nginx/nginx.dev.conf /etc/nginx/nginx.conf
 
 EXPOSE 80
-ENTRYPOINT ["/usr/local/openresty/bin/openresty", "-g", "daemon off;"]
 ```
 
 #### App
 
-> In our application example, you need to change the `API_URL` to `http://localhost/api` in `app/src/App.js` at line 6:
+> In our application example, you need to change the `API_URL` to `/api` in `app/src/App.js` at line 6:
 >
 > `const API_URL = 'http://localhost/api';`
 
 #### Db
 
-> You will also need to change the way your api connect to our database locally. Change your host: previously `127.0.0.1` to `db` - isn't it beautiful? Docker taking care of hostnames ? ;-)
+> You will need to change the way your api connect to our database locally. Change your host: previously `127.0.0.1` to `db` - isn't it beautiful? Docker taking care of hostnames ? ;-)
 >
 > In our example, go to `api/server/config/config.json` and change line 6.
 
-### 4.2. Create the `docker/build.yml` file and declare our services
+### 4.3: Actually connect everything.
+
+We now create the `docker/docker-compose.dev.yml` configuration file and connect our services.
 
 ```
 📂 docker
 │ ...
-└ 🗋 build.yml
-```
-
-```yml
-version: '3'
-services:
-  server-dev:
-    build:
-      context: ../.
-      dockerfile: docker/server/Dockerfile.dev
-    image: myapp-server
-  app-dev:
-    build:
-      context: ../.
-      dockerfile: docker/app/Dockerfile.dev
-    image: myapp-app
-  api-dev:
-    build:
-      context: ../.
-      dockerfile: docker/api/Dockerfile.dev
-    image: myapp-api
-  db-dev:
-    build:
-      context: ../.
-      dockerfile: docker/db/Dockerfile.dev
-    env_file: db/psql.env
-    image: myapp-db
-```
-
-### 4.3: Actually connect everything.
-
-We now create the `docker/dev.tpl.yml` configuration file and connect our services. A good thing about having a `build.yml` file and a `dev.tpl.yml` file is that you separate building the containers from connecting them. This way you can pass the containers their environnement variable at the very end, just before running them: it separates your building job from your release job.
-
-```
-📂 config
-│ ...
-└ 🗋 dev.tpl.yml
+└ 🗋 docker-compose.dev.yml
 ```
 
 ```yml
 version: '3'
 services:
   server:
+    build:
+      context: ../.
+      dockerfile: docker/server/Dockerfile.dev
+    image: myapp-server
     deploy:
       resources: # Set these values when you know what you do!
         limits:
@@ -344,14 +277,16 @@ services:
         reservations:
           cpus: '0.0001'
           memory: 20M
-    image: myapp-server:${tag}
     ports:
       - '80:80' # Connect localhost 80 port to container 80 port
     links: # Link services to access http://app and  http://api inside the container
       - api:api
       - app:app
   app:
-    image: myapp-app:${tag}
+    build:
+      context: ../.
+      dockerfile: docker/app/Dockerfile.dev
+    image: myapp-app
     environment:
       - NODE_ENV=development
     volumes: # For webpack dev server to use our local files
@@ -367,7 +302,10 @@ services:
         reservations:
           cpus: '0.0001'
           memory: 20M
-    image: myapp-api:${tag}
+    build:
+      context: ../.
+      dockerfile: docker/api/Dockerfile.dev
+    image: myapp-api
     environment:
       - DB_NAME=myappdb
       - DB_USER=myappuser
@@ -384,13 +322,17 @@ services:
     depends_on:
       - "db"
   db:
-    image: myapp-db:${tag}
+    build:
+      context: ../.
+      dockerfile: docker/db/Dockerfile.dev
+    env_file: db/psql.env
+    image: myapp-db
     env_file: ../docker/db/psql.env
     ports:
       - '5431:5432'
 ```
 
-You can see in this file that we set resources limits: the hosting server will share its resources to these containers. Limiting resources prevent one container draining all resources leaving the other dying ((more info here)[https://docs.docker.com/engine/admin/resource_constraints]). You can either do this way or use [Docker Compose version 2](https://docs.docker.com/compose/compose-file/compose-file-v2/#cpu_count-cpu_percent-cpu_shares-cpu_quota-cpus-cpuset-domainname-hostname-ipc-mac_address-mem_limit-memswap_limit-mem_swappiness-mem_reservation-oom_score_adj-privileged-read_only-shm_size-stdin_open-tty-user-working_dir).
+You can see in this file that we set resources limits: the hosting server will share its resources to these containers. Limiting resources prevent one container draining all resources leaving the others dying ((more info here)[https://docs.docker.com/engine/admin/resource_constraints]). You can either do this way or use [Docker Compose version 2](https://docs.docker.com/compose/compose-file/compose-file-v2/#cpu_count-cpu_percent-cpu_shares-cpu_quota-cpus-cpuset-domainname-hostname-ipc-mac_address-mem_limit-memswap_limit-mem_swappiness-mem_reservation-oom_score_adj-privileged-read_only-shm_size-stdin_open-tty-user-working_dir).
 
 ### 4.4: Create installation script.
 
@@ -405,33 +347,13 @@ You can see in this file that we set resources limits: the hosting server will s
 set -e
 
 # Build app and api containers
-docker-compose -f docker/build.yml build server-dev
-docker-compose -f docker/build.yml build app-dev
-docker-compose -f docker/build.yml build api-dev
-docker-compose -f docker/build.yml build db-dev
-
-# Render environnement variables function
-render_template() {
-  eval "echo \"$(cat $1)\""
-}
-
-# Release locally
-env='loc'
-tag=$env.$(date +"%y.%m.%d.%H%M")
-docker tag myapp-server myapp-server:${tag}
-docker tag myapp-app myapp-app:${tag}
-docker tag myapp-api myapp-api:${tag}
-docker tag myapp-db myapp-db:${tag}
-
-# Put docker compose up recipe in target folder
-mkdir -p target
-render_template config/dev.tpl.yml > target/docker-compose.yml
+docker-compose -f docker/docker-compose.dev.yml build
 
 # Launch the db alone once and give it time to create db user and database
 # This is a quickfix to avoid waiting for database to startup on first execution (more details [here](https://docs.docker.com/compose/startup-order/))
-docker-compose -f target/docker-compose.yml up -d db
+docker-compose -f docker/docker-compose.dev.yml up -d db
 sleep 5
-docker-compose -f target/docker-compose.yml stop db
+docker-compose -f docker/docker-compose.dev.yml stop db
 
 ```
 
@@ -443,9 +365,9 @@ In our root `package.json` file, add the following scripts:
 ...
   "scripts": {
     "dev:install": "./script/00-install-dev.sh",
-    "dev:up": "docker-compose -f target/docker-compose.yml up",
-    "dev:down": "docker-compose -f target/docker-compose.yml down",
-    "dev:uninstall": "docker-compose -f target/docker-compose.yml down --rmi all",
+    "dev:up": "docker-compose -f docker/docker-compose.dev.yml up",
+    "dev:down": "docker-compose -f docker/docker-compose.dev.yml down",
+    "dev:uninstall": "docker-compose -f docker/docker-compose.dev.yml down --rmi all",
     "dev:connect:api": "docker exec -it target_api_1 /bin/sh",
     "dev:connect:db": "psql -h localhost -p 5431 -U myappuser -d myappdb"
   }
@@ -471,6 +393,6 @@ You can have the final result at the `containerfull` branch of the [repo of this
 ## What's next ?
 
 You can create all scripts and derived Dockerfiles to release and deploy your containers in CI/CD ! 
-You can first create `nginx.prod.conf` file, then create the `docker/prod.tpl.yml` configuration file. Get inspire by your development configuration and create the scripts needed in your CI/CD pipelines.
+You can first create `nginx.prod.conf` file, then create the `docker/docker-compose.prod.yml` configuration file. Get inspire by your development configuration and create the scripts needed in your CI/CD pipelines.
 
 Cheers :)
